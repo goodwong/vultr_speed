@@ -2,6 +2,7 @@ use async_std::sync::{Arc, Mutex};
 use bytesize::ByteSize;
 use chrono;
 use reqwest;
+use std::env;
 use std::io::{stdout, Write};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use termion;
@@ -93,7 +94,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let logs = Arc::new(Mutex::from(vec![]));
 
     let column_width = 12;
-    let max_speed = 8_000_000;
+    let args: Vec<String> = env::args().collect();
+    let max_speed: usize = match args.get(1) {
+        Some(arg) => arg.parse()?,
+        None => 2_000_000,
+    };
+    println!("  --max_speed: {}", max_speed);
 
     let mut loop_index: i32 = 0;
     loop {
@@ -110,7 +116,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // 行头
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        print!("{:10}{}", timestamp, termion::cursor::Down(9));
+        print!("{:10}{}", timestamp, "\n".repeat(9));
+        print!("{:10}", "");
         stdout().flush()?;
         for (_, endpoint) in endpoints.iter().enumerate() {
             // 启动下载
@@ -118,7 +125,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let receiver = logs.clone();
                 let endpoint = endpoint.clone();
                 tokio::spawn(async move {
-                    download(endpoint, receiver).await.unwrap();
+                    match download(endpoint, receiver).await {
+                        Ok(_) => (),
+                        Err(_) => (), // todo 提前结束
+                    };
                 });
             }
 

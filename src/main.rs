@@ -1,5 +1,6 @@
 use async_std::sync::{Arc, Mutex};
 use bytesize::ByteSize;
+use chrono;
 use reqwest;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio;
@@ -41,8 +42,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             0
         };
-        print!("Speed: {:>9} ", ByteSize::b(speed as u64).to_string());
-        println!(" {:<30}", "█".repeat(30 * speed as usize / 2_000_000));
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+        print!("{:>8} ", timestamp);
+        let column_width = 11;
+        let max_speed = 4_000_000;
+        print_speed(speed, max_speed, column_width);
     }
 }
 
@@ -61,4 +65,21 @@ async fn download(
         receiver.lock().await.push((now, len));
     }
     Ok(())
+}
+
+fn print_speed(speed: usize, max: usize, width: usize) {
+    let output = format!("{:>9}/s", ByteSize::b(speed as u64).to_string());
+    let speed_bar_len = usize::min(width, width * speed as usize / max);
+    let (part1, part2) = if speed >= max {
+        (
+            format!("\x1B[7;31m{}\x1B[0m", &output[0..speed_bar_len]),
+            format!("\x1B[31;m{}\x1B[0m", &output[speed_bar_len..]),
+        )
+    } else {
+        (
+            format!("\x1B[7m{}\x1B[0m", &output[0..speed_bar_len]),
+            format!("\x1B[0m{}\x1B[0m", &output[speed_bar_len..]),
+        )
+    };
+    println!("{}{}", part1, part2);
 }

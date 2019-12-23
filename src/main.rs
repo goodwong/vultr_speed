@@ -112,9 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // 表头
         if loop_index % 60 == 0 {
             println!();
-            print!("{:8} ", "");
+            print!("{:8}  ", "");
             for (_, endpoint) in endpoints.iter().enumerate() {
-                print!("{:^width$}  ", endpoint.name, width = column_width);
+                print!("{:^width$} ", endpoint.name, width = column_width);
             }
             println!();
         }
@@ -129,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // 行头
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        print!("{:>8} ", timestamp);
+        print!("{:>8}  ", timestamp);
 
         // 打印每一个数据中心速率
         for (i, _) in endpoints.iter().enumerate() {
@@ -154,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 0
             };
             print_speed(speed, max_speed, column_width);
-            print!("  ");
+            print!(" ");
         }
         println!();
     }

@@ -97,21 +97,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut loop_index: i32 = 0;
     loop {
         // 表头
-        if loop_index % 10 == 0 {
+        if loop_index % 60 == 0 {
             println!();
-            print!("{:8}  ", "");
+            print!("{:10}", "");
             for (_, endpoint) in endpoints.iter().enumerate() {
-                print!("{:^width$} ", endpoint.name, width = column_width);
+                print!("{:<width$} ", endpoint.name, width = column_width);
             }
             println!();
         }
+        // 行头
+        if loop_index % 12 == 0 {
+            let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+            print!("{:10}", timestamp);
+        } else {
+            print!("{:10}", "");
+        }
+        stdout().flush()?;
         loop_index += 1;
 
-        // 行头
-        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        print!("{:10}{}", timestamp, "\n".repeat(9));
-        print!("{:10}", "");
-        stdout().flush()?;
+        // 显示每个数据中心
         for (_, endpoint) in endpoints.iter().enumerate() {
             // 启动下载
             {
@@ -120,34 +124,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tokio::spawn(async move {
                     match download(endpoint, receiver).await {
                         Ok(_) => (),
-                        Err(_) => (), // todo 提前结束
+                        Err(_) => (), // todo 提前结束，转到下一个数据中心
                     };
                 });
             }
+            // 去掉开头8秒数据
+            tokio::timer::delay_for(Duration::from_millis(8_000)).await;
 
-            // 读取10秒数据
-            print!("{}", termion::cursor::Right(1));
-            print!("{}", termion::cursor::Up(9));
-            stdout().flush()?;
-
-            // 去掉开头10秒数据
-            tokio::timer::delay_for(Duration::from_millis(10_000)).await;
+            // 动态输出每秒速度
+            let mut bytes_in_10s = 0;
             for i in 0..10 {
                 // 等待1秒
-                tokio::timer::delay_for(Duration::from_millis(1000)).await;
+                tokio::timer::delay_for(Duration::from_millis(1_000)).await;
                 // 收取日志
+                // todo 此处需要增加时间范围过滤，更为精确。
                 let logs: Vec<PacketReport> = logs.lock().await.drain(0..).collect();
 
                 let bytes = logs.iter().fold(0, |a, b| a + b.size);
-                let speed = bytes / 1;
+                let speed = bytes / 1; // 每秒刷新
 
                 if i > 0 {
-                    print!("{}", termion::cursor::Down(1));
                     print!("{}", termion::cursor::Left(column_width as u16));
                 }
                 print_speed(speed, column_width);
                 stdout().flush()?;
+
+                bytes_in_10s += bytes;
             }
+
+            // 最终输出平均速度
+            let average_speed = bytes_in_10s / 10;
+            tokio::timer::delay_for(Duration::from_millis(2_000)).await;
+            print!("{}", termion::cursor::Left(column_width as u16));
+            print_speed(average_speed, column_width);
+            print!("{}", termion::cursor::Right(1));
+            stdout().flush()?;
         }
         println!();
     }
@@ -165,11 +176,11 @@ async fn download(
     while let Some(chunk) = res.chunk().await? {
         let timestamp = now();
         let size = chunk.len();
-        if timestamp - start < 10_000 {
+        if timestamp - start < 8_000 {
             continue;
         }
 
-        if timestamp - start >= 20_000 {
+        if timestamp - start >= 18_000 {
             break;
         }
         receiver.lock().await.push(PacketReport { timestamp, size });

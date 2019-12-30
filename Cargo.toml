@@ -12,4 +12,4 @@ reqwest = "0.10.0-alpha.2"
 tokio = "0.2.0-alpha.6"
 async-std = "1.3"
 chrono = "0.4.10"
-termion = "1.5"
+termion = { git = "https://github.com/mcgoo/termion", branch = "windows" }

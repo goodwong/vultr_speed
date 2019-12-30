@@ -24,6 +24,11 @@ struct Endpoint {
 // 2. 需要去除开始的前5秒
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = termion::init(); // for windows
+
+    // 清屏
+    print!("{}{}", termion::clear::All, termion::cursor::Goto(1, 1));
+
     let endpoints = [
         Endpoint {
             name: "Frankfurt".to_string(),
@@ -92,31 +97,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     let logs = Arc::new(Mutex::from(vec![]));
 
+    let header_width: usize = 10;
     let column_width: usize = 12;
+    let loop_per_block = 60;
 
     let mut loop_index: i32 = 0;
     loop {
         // 表头
-        if loop_index % 60 == 0 {
+        if loop_index % loop_per_block == 0 {
             println!();
             print!("{:10}", "");
-            for (_, endpoint) in endpoints.iter().enumerate() {
-                print!("{:<width$} ", endpoint.name, width = column_width);
+            for (i, endpoint) in endpoints.iter().enumerate() {
+                let x = (header_width + i * (column_width + 1) + 1) as u16;
+                let y = (loop_index + (loop_index / loop_per_block) * 2 + 2) as u16;
+                print!(
+                    "{}{:^width$} ",
+                    termion::cursor::Goto(x, y),
+                    endpoint.name,
+                    width = column_width
+                );
             }
             println!();
         }
+
         // 行头
+        let y = (loop_index + (loop_index / loop_per_block) * 2 + 3) as u16;
         if loop_index % 12 == 0 {
             let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-            print!("{:10}", timestamp);
+            print!("{}{:10}", termion::cursor::Goto(1, y), timestamp);
         } else {
-            print!("{:10}", "");
+            print!("{}{:10}", termion::cursor::Goto(1, y), "");
         }
         stdout().flush()?;
-        loop_index += 1;
 
         // 显示每个数据中心
-        for (_, endpoint) in endpoints.iter().enumerate() {
+        for (j, endpoint) in endpoints.iter().enumerate() {
             // 启动下载
             {
                 let receiver = logs.clone();
@@ -129,8 +144,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::timer::delay_for(Duration::from_millis(8_000)).await;
 
             // 动态输出每秒速度
+            let x = (header_width + j * (column_width + 1) + 1) as u16;
             let mut bytes_in_10s = 0;
-            for i in 0..10 {
+            for _ in 0..10 {
                 // 等待1秒
                 tokio::timer::delay_for(Duration::from_millis(1_000)).await;
                 // 收取日志
@@ -140,10 +156,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let bytes = logs.iter().fold(0, |a, b| a + b.size);
                 let speed = bytes / 1; // 每秒刷新
 
-                if i > 0 {
-                    print!("{}", termion::cursor::Left(column_width as u16));
-                }
+                print!("{}", termion::cursor::Goto(x, y));
                 print_speed(speed, column_width);
+                print!("{}", termion::cursor::Goto(x, y));
                 stdout().flush()?;
 
                 bytes_in_10s += bytes;
@@ -152,12 +167,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 最终输出平均速度
             let average_speed = bytes_in_10s / 10;
             tokio::timer::delay_for(Duration::from_millis(2_000)).await;
-            print!("{}", termion::cursor::Left(column_width as u16));
+            print!("{}", termion::cursor::Goto(x, y));
             print_speed(average_speed, column_width);
-            print!("{}", termion::cursor::Right(1));
+
             stdout().flush()?;
         }
         println!();
+        loop_index += 1;
     }
 }
 

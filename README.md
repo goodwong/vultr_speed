@@ -44,3 +44,49 @@ todo：（欢迎参与）
 3. 加入丢包率的连续测试（ICMP协议）
 
 
+
+交叉编译windows目标（Debian）
+-----------------
+1. 首先，修改termion为支持windows版本的
+    > 参考：https://gitlab.redox-os.org/redox-os/termion/issues/103#note_6722
+    ```toml
+    [dependencies]
+    ....
+    termion = { git = "https://github.com/mcgoo/termion", branch = "windows" }
+    ```
+2. 修改 src/main.rs：
+    ```rust
+    # 在 main() 里第一行加入：
+    let _guard = termion::init();
+    ```
+
+
+3. 安装配置
+    ```sh
+    # 安装编译工具
+    apt-get update
+    apt-get install gcc-mingw-w64-x86-64 -y
+
+    # 配置rustup
+    mkdir ~/.cargo/
+    tee -a ~/.cargo/config << END
+    [target.x86_64-pc-windows-gnu]
+    linker = "x86_64-w64-mingw32-gcc"
+    ar = "x86_64-w64-mingw32-gcc-ar"
+    END
+    # 或者在当期项目根目录下 添加 .cargo/config文件，输入以上内容也可以
+
+    rustup target add x86_64-pc-windows-gnu
+
+    # 还需要修复一个bug，很多人会被这个坑了
+    # 参考：https://blog.nanpuyue.com/2019/052.html
+    # 简单的说就是 Rust 工具链中自带的 crt2.o 太老了，我们替换一下：
+    cp -vb /usr/x86_64-w64-mingw32/lib/crt2.o "$(rustc --print sysroot)"/lib/rustlib/x86_64-pc-windows-gnu/lib/
+
+    # 愉快的编译了
+    # 产出文件：target/x86_64-pc-windows-gnu/release/vultr_speed.exe 拷贝到windows下，cmd运行
+    cargo build --target=x86_64-pc-windows-gnu --release
+    ```
+4. 注意事项：
+    1. windows只有cmd可以输出颜色，PowerShell没有颜色显示
+    2. 如果cmd窗口启用了快速编辑模式，当鼠标选中文本时，输出会被中断（猜测抢不到读写锁）

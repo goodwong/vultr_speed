@@ -122,10 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let receiver = logs.clone();
                 let endpoint = endpoint.clone();
                 tokio::spawn(async move {
-                    match download(endpoint, receiver).await {
-                        Ok(_) => (),
-                        Err(_) => (), // todo 提前结束，转到下一个数据中心
-                    };
+                    download(endpoint, receiver).await.unwrap_or(());
                 });
             }
             // 去掉开头8秒数据
